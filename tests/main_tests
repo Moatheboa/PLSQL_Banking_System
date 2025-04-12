@@ -1,0 +1,134 @@
+-- Adding 4 new customers:
+BEGIN
+    do_new_customer('650707-1111','Tito','Ortiz','qwerTY');
+    do_new_customer('560126-1148','Margreth','Andersson','olle85');
+    do_new_customer('840317-1457','Mary','Smith','asdfgh');
+    do_new_customer('861124-4478','Vincent','Ortiz','qwe123');
+    COMMIT;
+END;
+/
+
+-- Adding data to tables account_type, account and account_owner:
+INSERT INTO account_type(accty_id,accty_name,present_interest)
+    VALUES(1,'farmer account',2.4);
+INSERT INTO account_type (accty_id,accty_name,present_interest)
+    VALUES(2,'potato account',3.4);
+INSERT INTO account_type (accty_id,accty_name,present_interest)
+    VALUES(3,'hog account',4.4);
+COMMIT;
+INSERT INTO account(acc_id,accty_id,date_time,balance)
+    VALUES(123,1,SYSDATE - 321,0);
+INSERT INTO account(acc_id,accty_id,date_time,balance)
+    VALUES(5899,2,SYSDATE - 2546,0);
+INSERT INTO account(acc_id,accty_id,date_time,balance)
+    VALUES(5587,3,SYSDATE - 10,0);
+INSERT INTO account(acc_id,accty_id,date_time,balance)
+    VALUES(8896,1,SYSDATE - 45,0);
+COMMIT;
+INSERT INTO account_owner(accow_id,cust_id,acc_id)
+    VALUES(pk_seq.NEXTVAL,'650707-1111',123);
+INSERT INTO account_owner(accow_id,cust_id,acc_id)
+    VALUES(pk_seq.NEXTVAL,'560126-1148',123);
+INSERT INTO account_owner(accow_id,cust_id,acc_id)
+    VALUES(pk_seq.NEXTVAL,'650707-1111',5899);
+INSERT INTO account_owner(accow_id,cust_id,acc_id)
+    VALUES(pk_seq.NEXTVAL,'861124-4478',8896);
+COMMIT;
+
+-- Testing trigger biufer_customer by sending password in wrong format:
+begin 
+    do_new_customer('861124-4478','Raul','Ortiz','qwe'); 
+end;
+/
+
+-- Expected result:
+-- ORA-20002: Procedure could not be created. Check the parameters.
+
+-- Testing function log_in() with data:
+SELECT log_in('650707-1111','QWERTY')
+FROM dual;
+
+-- Expected result, if success:
+-- 1
+
+-- Testing function get_balance()
+DECLARE
+    v_balance NUMBER(10.2);
+BEGIN
+    v_balance := get_balance(123);
+    dbms_output.put_line(v_balance);
+END;
+/
+-- Expected result, balance for account 123:
+-- 0
+
+-- Testing function get_authority() with incorrect acc_id:
+DECLARE
+    v_authorized NUMBER(1);
+BEGIN
+    v_authorized := get_authority('560126-1148', 1283);
+    dbms_output.put_line(v_authorized);
+END;
+/
+
+-- Expected result:
+-- 0
+
+-- Testing the function get_authority() with correct acc_id:
+DECLARE
+    v_authorized NUMBER(1);
+BEGIN
+    v_authorized := get_authority('560126-1148', 123);
+    dbms_output.put_line(v_authorized);
+END;
+/
+
+-- Expected result:
+-- 1
+
+-- Testing procedure do_deposition():
+BEGIN
+    do_deposition(pk_seq.nextval,'650707-1111',123,2300.50,sysdate);
+END;
+/
+
+-- Expected result:
+-- Your current balance is: 2300.5 SEK
+
+-- Testing procedure do_withdrawal with correct data:
+BEGIN
+    do_withdrawal(pk_seq.nextval,'650707-1111',123,300,sysdate);
+END;
+/
+
+-- Expected result:
+-- Your current balance is: 2000.5 SEK
+
+-- Testing procedure do_withdrawal by trying to withdraw too much:
+BEGIN
+    do_withdrawal(pk_seq.nextval,'650707-1111',123,500000,sysdate);
+END;
+/
+
+-- Expected result:
+-- ORA-20004: The desired withdrawal is bigger then the balance of the account 
+
+
+-- Testing procedure do_transfer with correct data:
+BEGIN
+    do_transfer(pk_seq.nextval,'650707-1111',123,5899,300,sysdate);
+END;
+/
+
+-- Expected result:
+-- The current balance of sending account is: 1700.5 SEK
+-- The current balance of the receiving account is: 1700.5 SEK
+
+--Testing procedure do_transfer for an unauthorized user:
+BEGIN
+    do_transfer(pk_seq.nextval,'861124-4478',123,5899,300,sysdate);
+END;
+/
+
+-- Expected result:
+-- Unauthorized user!

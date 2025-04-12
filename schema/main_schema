@@ -1,0 +1,73 @@
+-- Creating tables and a sequence:
+CREATE TABLE account_type (
+    accty_id NUMBER(6) CONSTRAINT pk_account_type PRIMARY KEY,
+    accty_name VARCHAR2(20) NOT NULL,
+    present_interest number(5,2) NOT NULL
+);
+	
+CREATE TABLE interest_change (
+    intch_id NUMBER(6) CONSTRAINT pk_interest_change PRIMARY KEY,
+    accty_id NUMBER(6) NOT NULL,
+    interest number(5,2) NOT NULL,
+	date_time DATE NOT NULL,
+	CONSTRAINT fk_intch_accty FOREIGN KEY (ACCTY_ID) REFERENCES account_type (ACCTY_ID)
+);
+	
+CREATE TABLE account (
+    acc_id NUMBER(8) CONSTRAINT pk_account PRIMARY KEY,
+    accty_id NUMBER(6) NOT NULL,
+	date_time DATE NOT NULL,
+	balance NUMBER(10,2) NOT NULL,
+	CONSTRAINT fk_account_accty FOREIGN KEY (ACCTY_ID) REFERENCES account_type (ACCTY_ID)
+);
+
+CREATE TABLE customer (
+    cust_id VARCHAR2(11) CONSTRAINT pk_customer PRIMARY KEY,
+    first_name VARCHAR2(25) NOT NULL,
+    last_name VARCHAR2(25) NOT NULL,
+    passwd VARCHAR2(6) NOT NULL
+);
+
+CREATE TABLE account_owner (
+    accow_id NUMBER(9) CONSTRAINT pk_account_owner PRIMARY KEY,
+    cust_id varchar2(11) NOT NULL,
+	acc_id NUMBER(8) NOT NULL,
+	CONSTRAINT fk_accow_customer FOREIGN KEY (CUST_ID) REFERENCES customer (CUST_ID),
+	CONSTRAINT fk_accow_account FOREIGN KEY (ACC_ID) REFERENCES account (ACC_ID)
+);
+
+CREATE TABLE withdrawal (
+    wit_id NUMBER(9) CONSTRAINT pk_withdrawal PRIMARY KEY,
+    cust_id VARCHAR2(11) NOT NULL,
+	acc_id NUMBER(8) NOT NULL,
+	amount NUMBER(10,2) not null,
+	date_time DATE,
+    CONSTRAINT fk_withdrawal_customer FOREIGN KEY (CUST_ID) REFERENCES customer (CUST_ID),
+	CONSTRAINT fk_withdrawal_account FOREIGN KEY (ACC_ID) REFERENCES account (ACC_ID)
+);
+
+CREATE TABLE deposition (
+    dep_id NUMBER(9) CONSTRAINT pk_deposition PRIMARY KEY,
+    cust_id VARCHAR2(11) NOT NULL,
+	acc_id NUMBER(8) NOT NULL,
+	amount NUMBER(10,2) not null,
+	date_time DATE,
+    CONSTRAINT fk_deposition_customer FOREIGN KEY (CUST_ID) REFERENCES customer (CUST_ID),
+	CONSTRAINT fk_deposition_account FOREIGN KEY (ACC_ID) REFERENCES account (ACC_ID)
+);
+	
+CREATE TABLE transfer (
+    tra_id NUMBER(9) CONSTRAINT pk_transfer PRIMARY KEY,
+    cust_id VARCHAR2(11) NOT NULL,
+	from_acc_id NUMBER(8) NOT NULL,
+	to_acc_id NUMBER(8) NOT NULL,
+	amount NUMBER(10,2) not null,
+	date_time DATE,
+    CONSTRAINT fk_transfer_customer FOREIGN KEY (CUST_ID) REFERENCES customer (CUST_ID),
+	CONSTRAINT fk_transfer_from_account FOREIGN KEY (FROM_ACC_ID) REFERENCES account (ACC_ID),
+	CONSTRAINT fk_transfer_to_account FOREIGN KEY (TO_ACC_ID) REFERENCES account (ACC_ID)
+);
+
+CREATE SEQUENCE pk_seq
+START WITH 1
+INCREMENT BY 1;

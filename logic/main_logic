@@ -1,0 +1,210 @@
+CREATE OR REPLACE FUNCTION log_in(
+    p_cust_id IN customer.cust_id%type,
+    p_passwd IN customer.passwd%type)
+RETURN NUMBER
+AS
+    v_passwd customer.passwd%type;
+BEGIN
+    SELECT passwd
+    INTO v_passwd
+    FROM customer
+    WHERE cust_id = p_cust_id;
+    IF v_passwd = p_passwd THEN
+        RETURN 1;
+    ELSE
+        RETURN 0;
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+END;
+/
+
+CREATE OR REPLACE FUNCTION get_balance(
+    p_acc_id IN account.acc_id%type)
+RETURN NUMBER
+AS
+    v_balance account.balance%type;
+BEGIN
+    SELECT balance
+    INTO v_balance
+    FROM account
+    WHERE acc_id = p_acc_id;
+    RETURN v_balance;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+END;
+/
+
+CREATE OR REPLACE FUNCTION get_authority(
+    p_cust_id IN account_owner.cust_id%type,
+    p_acc_id IN account_owner.acc_id%type)
+RETURN NUMBER
+AS
+    v_accow_id account_owner.accow_id%type;
+BEGIN
+    SELECT accow_id
+    INTO v_accow_id
+    FROM account_owner
+    WHERE cust_id = p_cust_id
+    AND acc_id = p_acc_id;
+    RETURN 1;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 0;
+END;
+/
+
+CREATE OR REPLACE PROCEDURE do_new_customer(
+    p_cust_id IN customer.cust_id%TYPE,
+    p_first_name IN customer.first_name%TYPE,
+    p_last_name IN customer.last_name%TYPE,
+    p_passwd IN customer.passwd%TYPE)
+AS
+BEGIN
+    INSERT INTO customer(cust_id,first_name,last_name,passwd)
+        VALUES(p_cust_id,p_first_name,p_last_name,p_passwd);
+    COMMIT;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+END;
+/
+
+CREATE OR REPLACE PROCEDURE do_deposition(
+    p_dep_id IN deposition.dep_id%TYPE,
+    p_cust_id IN deposition.cust_id%TYPE,
+    p_acc_id IN deposition.acc_id%TYPE,
+    p_amount IN deposition.amount%TYPE,
+    p_date_time IN deposition.date_time%type)
+AS
+BEGIN
+    INSERT INTO deposition(dep_id,cust_id,acc_id,amount,date_time)
+        VALUES(p_dep_id,p_cust_id,p_acc_id,p_amount,p_date_time);
+    dbms_output.put_line('Your current balance is: ' || get_balance(p_acc_id) || ' SEK');
+    COMMIT;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+END;
+/
+
+CREATE OR REPLACE PROCEDURE do_withdrawal(
+    p_wit_id IN withdrawal.wit_id%type,
+    p_cust_id IN withdrawal.cust_id%TYPE,
+    p_acc_id IN withdrawal.acc_id%TYPE,
+    p_amount IN withdrawal.amount%TYPE,
+    p_date_time IN withdrawal.date_time%TYPE)
+AS
+    unauthorized EXCEPTION;
+BEGIN
+    IF (get_authority(p_cust_id,p_acc_id) != 1) THEN
+        RAISE unauthorized;
+    END IF;
+    INSERT INTO withdrawal(wit_id,cust_id,acc_id,amount,date_time)
+        VALUES(p_wit_id,p_cust_id,p_acc_id,p_amount,p_date_time);
+    dbms_output.put_line('Your current balance is: ' || get_balance(p_acc_id) || ' SEK');
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+    WHEN unauthorized THEN
+        ROLLBACK;
+        dbms_output.put_line('unauthorized user!');
+END;
+/
+
+CREATE OR REPLACE PROCEDURE do_transfer(
+    p_tra_id IN transfer.tra_id%TYPE,
+    p_cust_id IN transfer.cust_id%TYPE,
+    p_from_acc_id IN transfer.from_acc_id%TYPE,
+    p_to_acc_id IN transfer.to_acc_id%TYPE,
+    p_amount IN transfer.amount%TYPE,
+    p_date_time IN transfer.date_time%TYPE)
+AS
+    unauthorized EXCEPTION;
+BEGIN
+    IF (get_authority(p_cust_id,p_from_acc_id) != 1) THEN
+        RAISE unauthorized;
+    END IF;
+    INSERT INTO transfer(tra_id,cust_id,from_acc_id,to_acc_id,amount,date_time)
+        VALUES(p_tra_id,p_cust_id,p_from_acc_id,p_to_acc_id,p_amount,p_date_time);
+    dbms_output.put_line('The current balance of sending account is: ' || get_balance(p_from_acc_id) || ' SEK');
+    dbms_output.put_line('The current balance of the receiving account is: ' || get_balance(p_from_acc_id) || ' SEK');
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20003, 'No data found, check your parameters.');
+    WHEN unauthorized THEN
+        ROLLBACK;
+        dbms_output.put_line('Unauthorized user!');
+END;
+/
+
+CREATE OR REPLACE TRIGGER biufer_customer
+    BEFORE INSERT OR UPDATE
+    OF passwd
+    ON customer
+    FOR EACH ROW
+    WHEN (LENGTH(new.passwd) != 6)
+BEGIN
+    RAISE_APPLICATION_ERROR(-20001, 'Password cannot be more or less than 6 characters');
+END;
+/
+
+CREATE OR REPLACE TRIGGER aifer_deposition
+    AFTER INSERT
+    ON deposition
+    FOR EACH ROW
+BEGIN
+    UPDATE account
+    SET balance = balance + :new.amount
+    WHERE acc_id = :new.acc_id;
+END;
+/
+
+CREATE OR REPLACE TRIGGER bifer_withdrawal
+    BEFORE INSERT
+    ON withdrawal
+    FOR EACH ROW
+BEGIN
+    IF (:new.amount > get_balance(:new.acc_id)) THEN
+        RAISE_APPLICATION_ERROR(-20004, 'The desired withdrawal is bigger then the balance of the account');
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER aifer_withdrawal
+    AFTER INSERT
+    ON withdrawal
+    FOR EACH ROW
+BEGIN
+    UPDATE account
+    SET balance = balance - :new.amount
+    WHERE acc_id = :new.acc_id;
+END;
+/
+
+CREATE OR REPLACE TRIGGER bifer_transfer
+    BEFORE INSERT
+    ON transfer
+    FOR EACH ROW
+BEGIN
+    IF (:new.amount > get_balance(:new.from_acc_id)) THEN
+        RAISE_APPLICATION_ERROR(-20004, 'The desired withdrawal is bigger then the balance of the account');
+    END IF;
+END;
+/
+
+CREATE OR REPLACE TRIGGER aifer_transfer
+    AFTER INSERT
+    ON transfer
+    FOR EACH ROW
+BEGIN
+    UPDATE account
+    SET balance = balance - :new.amount
+    WHERE acc_id = :new.from_acc_id;
+    UPDATE account
+    SET balance = balance + :new.amount
+    WHERE acc_id = :new.to_acc_id;
+END;
+/
